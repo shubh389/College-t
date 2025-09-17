@@ -1111,6 +1111,20 @@ export default function PrincipalDashboard() {
             <p className="text-sm text-muted-foreground">
               Department grid • Expand into HOD → Faculty → Attendance
             </p>
+            <div className="mt-2 flex flex-wrap items-center gap-3 text-xs sm:text-sm">
+              <span className="inline-flex items-center gap-2 px-2.5 py-1 rounded-full bg-muted/60">
+                <span className="text-muted-foreground">Departments</span>
+                <span className="font-semibold">{departments.length}</span>
+              </span>
+              <span className="inline-flex items-center gap-2 px-2.5 py-1 rounded-full bg-muted/60">
+                <span className="text-muted-foreground">Total HODs</span>
+                <span className="font-semibold">{departments.reduce((s, d) => s + d.hods.length, 0)}</span>
+              </span>
+              <span className="inline-flex items-center gap-2 px-2.5 py-1 rounded-full bg-muted/60">
+                <span className="text-muted-foreground">Faculty</span>
+                <span className="font-semibold">{departments.reduce((s, d) => s + d.hods.reduce((x, h) => x + h.faculties.length, 0), 0)}</span>
+              </span>
+            </div>
           </div>
           <div className="flex items-center gap-3">
             <div className="relative">
