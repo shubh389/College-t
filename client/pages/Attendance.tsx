@@ -7,7 +7,6 @@ import {
   Pie,
   Cell,
   Tooltip as RTooltip,
-  LineChart,
   Line,
   XAxis,
   YAxis,
@@ -15,6 +14,7 @@ import {
   Legend,
   BarChart,
   Bar,
+  ComposedChart,
 } from "recharts";
 
 interface PunchRow {
@@ -275,15 +275,6 @@ export default function Attendance() {
     { name: "Absent/Off", value: monthly.absent },
   ];
 
-  const graceInCount = data.filter((d) => d.graceIn).length;
-  const graceOutCount = data.filter((d) => d.graceOut).length;
-  const clFromGrace = Math.floor((graceInCount + graceOutCount) / 4);
-
-  const lineData = data.map((d) => ({
-    day: d.date.slice(-2),
-    in: d.graceIn ? 1 : 0,
-    out: d.graceOut ? 1 : 0,
-  }));
 
   async function getXLSX() {
     try {
@@ -453,6 +444,25 @@ export default function Attendance() {
     );
   }
 
+  const detailChartData = useMemo(() => {
+    const byDate = new Map<string, { count: number; total: number }>();
+    for (const r of filteredPunches) {
+      const key = r.inDate || r.outDate || "";
+      if (!key) continue;
+      const d = byDate.get(key) || { count: 0, total: 0 };
+      d.count += 1;
+      d.total += r.durationMinutes || 0;
+      byDate.set(key, d);
+    }
+    return Array.from(byDate.entries())
+      .sort((a, b) => a[0].localeCompare(b[0]))
+      .map(([date, v]) => ({
+        day: date.slice(-2),
+        count: v.count,
+        avgHours: Number(((v.total / Math.max(1, v.count)) / 60).toFixed(2)),
+      }));
+  }, [filteredPunches]);
+
   const deptPeople = useMemo(() => {
     const map = new Map<string, Set<string>>();
     for (const p of filteredPunches) {
@@ -513,37 +523,19 @@ export default function Attendance() {
 
         <Card className="lg:col-span-2">
           <CardContent className="p-4">
-            <p className="text-xs text-muted-foreground">
-              Grace In/Out Flow (per day)
-            </p>
+            <p className="text-xs text-muted-foreground">Attendance detail (graph)</p>
             <div className="h-56">
               <ResponsiveContainer width="100%" height="100%">
-                <LineChart
-                  data={lineData}
-                  margin={{ top: 10, right: 20, left: 0, bottom: 0 }}
-                >
+                <ComposedChart data={detailChartData} margin={{ top: 10, right: 20, left: 0, bottom: 0 }}>
                   <CartesianGrid strokeDasharray="3 3" />
                   <XAxis dataKey="day" />
-                  <YAxis allowDecimals={false} />
+                  <YAxis yAxisId="left" allowDecimals={false} />
+                  <YAxis yAxisId="right" orientation="right" />
                   <RTooltip />
                   <Legend />
-                  <Line
-                    type="monotone"
-                    dataKey="in"
-                    name="Grace In"
-                    stroke="#ef4444"
-                    strokeWidth={2}
-                    dot={false}
-                  />
-                  <Line
-                    type="monotone"
-                    dataKey="out"
-                    name="Grace Out"
-                    stroke="#b91c1c"
-                    strokeWidth={2}
-                    dot={false}
-                  />
-                </LineChart>
+                  <Bar yAxisId="left" dataKey="count" name="Entries" fill="#ef4444" />
+                  <Line yAxisId="right" type="monotone" dataKey="avgHours" name="Avg Hours" stroke="#b91c1c" strokeWidth={2} dot={false} />
+                </ComposedChart>
               </ResponsiveContainer>
             </div>
           </CardContent>
@@ -554,13 +546,14 @@ export default function Attendance() {
         <Card>
           <CardContent className="p-4">
             <div className="flex flex-col sm:flex-row sm:items-end sm:justify-between gap-3 mb-2">
-              <p className="text-xs text-muted-foreground">Attendance detail</p>
+              <p className="text-sm font-semibold">Attendance detail</p>
               <div className="flex flex-col items-stretch sm:items-end gap-2">
                 <div className="grid grid-cols-2 md:grid-cols-4 gap-2">
                   <select
+                    aria-label="Department"
                     value={filterDept}
                     onChange={(e) => setFilterDept(e.target.value)}
-                    className="border rounded-md px-2 py-1 text-sm"
+                    className="border rounded-md px-2 py-2 text-sm focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-1 outline-none"
                   >
                     {departments.map((d) => (
                       <option key={d} value={d}>
@@ -569,18 +562,19 @@ export default function Attendance() {
                     ))}
                   </select>
                   <input
+                    aria-label="Search"
                     value={search}
                     onChange={(e) => setSearch(e.target.value)}
-                    placeholder="Search name/ID"
-                    className="border rounded-md px-2 py-1 text-sm"
+                    placeholder="Search name or employee ID"
+                    className="border rounded-md px-3 py-2 text-sm placeholder:text-muted-foreground focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-1 outline-none"
                   />
                   <input
+                    aria-label="Date"
                     type="date"
                     value={dateFrom}
                     onChange={(e) => setDateFrom(e.target.value)}
-                    className="border rounded-md px-2 py-1 text-sm"
+                    className="border rounded-md px-3 py-2 text-sm focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-1 outline-none"
                   />
-                  {/* Removed second date box per request */}
                 </div>
                 <Button onClick={exportDetailed} className="self-end" size="sm">
                   Export
