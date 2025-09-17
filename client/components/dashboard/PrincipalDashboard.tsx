@@ -266,7 +266,12 @@ function parseHM(s: string): { h: number; m: number } | null {
   if (!m) return null;
   return { h: Number(m[1]), m: Number(m[2]) };
 }
-function minutesBetween(inDate: string, inTime: string, outDate: string, outTime: string) {
+function minutesBetween(
+  inDate: string,
+  inTime: string,
+  outDate: string,
+  outTime: string,
+) {
   if (!inDate || !inTime || !outDate || !outTime) return 0;
   const start = new Date(`${inDate}T${inTime}:00`);
   const end = new Date(`${outDate}T${outTime}:00`);
@@ -284,7 +289,10 @@ function computeCumulativeForRows(rows: PunchRow[]) {
     const hmIn = parseHM(r.inTime);
     const hmOut = parseHM(r.outTime);
     const lateIn = !!(hmIn && (hmIn.h > 9 || (hmIn.h === 9 && hmIn.m > 10)));
-    const earlyOut = !!(hmOut && (hmOut.h < 17 || (hmOut.h === 17 && hmOut.m < 30)));
+    const earlyOut = !!(
+      hmOut &&
+      (hmOut.h < 17 || (hmOut.h === 17 && hmOut.m < 30))
+    );
     const gIn = lateIn;
     const gOut = earlyOut;
     if (gIn) graceInCount++;
@@ -295,7 +303,15 @@ function computeCumulativeForRows(rows: PunchRow[]) {
     if (lateIn || earlyOut || gIn || gOut) observations++;
   }
   const cls = Math.floor((lateInCount + earlyOutCount) / 4);
-  return { graceInCount, graceOutCount, lateInCount, earlyOutCount, doubleGrace, observations, cls };
+  return {
+    graceInCount,
+    graceOutCount,
+    lateInCount,
+    earlyOutCount,
+    doubleGrace,
+    observations,
+    cls,
+  };
 }
 function computeDurationForRows(rows: PunchRow[]) {
   const durations = rows
@@ -305,7 +321,11 @@ function computeDurationForRows(rows: PunchRow[]) {
     ? Math.round(durations.reduce((a, b) => a + b, 0) / durations.length)
     : 0;
   const normalizedHours = (avgMinutes / 60).toFixed(2);
-  const underCount = rows.filter((r) => minutesBetween(r.inDate, r.inTime, r.outDate, r.outTime) < 450 && minutesBetween(r.inDate, r.inTime, r.outDate, r.outTime) > 0).length;
+  const underCount = rows.filter(
+    (r) =>
+      minutesBetween(r.inDate, r.inTime, r.outDate, r.outTime) < 450 &&
+      minutesBetween(r.inDate, r.inTime, r.outDate, r.outTime) > 0,
+  ).length;
   const addnlCLFromAvg = Math.floor(underCount / 4);
   const lateInCount = rows.filter((r) => {
     const hmIn = parseHM(r.inTime);
@@ -353,7 +373,10 @@ async function exportCumulativeRows(rows: PunchRow[]) {
   const wb = XLSX.utils.book_new();
   const ws = XLSX.utils.json_to_sheet(data);
   XLSX.utils.book_append_sheet(wb, ws, "Cumulative");
-  XLSX.writeFile(wb, `cumulative-${new Date().toISOString().slice(0, 10)}.xlsx`);
+  XLSX.writeFile(
+    wb,
+    `cumulative-${new Date().toISOString().slice(0, 10)}.xlsx`,
+  );
 }
 async function exportDurationRows(rows: PunchRow[]) {
   const XLSX = await getXLSX();
@@ -372,7 +395,10 @@ async function exportDurationRows(rows: PunchRow[]) {
   const wb = XLSX.utils.book_new();
   const ws = XLSX.utils.json_to_sheet(out);
   XLSX.utils.book_append_sheet(wb, ws, "Duration & CL");
-  XLSX.writeFile(wb, `duration-cl-${new Date().toISOString().slice(0, 10)}.xlsx`);
+  XLSX.writeFile(
+    wb,
+    `duration-cl-${new Date().toISOString().slice(0, 10)}.xlsx`,
+  );
 }
 
 function AttendanceDetailTable({ rows }: { rows: PunchRow[] }) {
@@ -636,8 +662,15 @@ function FacultyCard({
               return (
                 <div className="space-y-2">
                   <div className="flex items-center justify-between">
-                    <p className="text-xs text-muted-foreground">Cumulative Summary</p>
-                    <Button size="sm" onClick={() => exportCumulativeRows(rows)}>Export</Button>
+                    <p className="text-xs text-muted-foreground">
+                      Cumulative Summary
+                    </p>
+                    <Button
+                      size="sm"
+                      onClick={() => exportCumulativeRows(rows)}
+                    >
+                      Export
+                    </Button>
                   </div>
                   <div className="overflow-auto rounded-md border">
                     <table className="min-w-[900px] text-sm">
@@ -654,12 +687,20 @@ function FacultyCard({
                       </thead>
                       <tbody>
                         <tr className="hover:bg-muted/20">
-                          <td className="p-2 font-semibold">{c.graceInCount}</td>
-                          <td className="p-2 font-semibold">{c.graceOutCount}</td>
+                          <td className="p-2 font-semibold">
+                            {c.graceInCount}
+                          </td>
+                          <td className="p-2 font-semibold">
+                            {c.graceOutCount}
+                          </td>
                           <td className="p-2 font-semibold">{c.lateInCount}</td>
-                          <td className="p-2 font-semibold">{c.earlyOutCount}</td>
+                          <td className="p-2 font-semibold">
+                            {c.earlyOutCount}
+                          </td>
                           <td className="p-2 font-semibold">{c.doubleGrace}</td>
-                          <td className="p-2 font-semibold">{c.observations}</td>
+                          <td className="p-2 font-semibold">
+                            {c.observations}
+                          </td>
                           <td className="p-2 font-semibold">{c.cls}</td>
                         </tr>
                       </tbody>
@@ -673,8 +714,12 @@ function FacultyCard({
               return (
                 <div className="space-y-2">
                   <div className="flex items-center justify-between">
-                    <p className="text-xs text-muted-foreground">Duration & CL Summary</p>
-                    <Button size="sm" onClick={() => exportDurationRows(rows)}>Export</Button>
+                    <p className="text-xs text-muted-foreground">
+                      Duration & CL Summary
+                    </p>
+                    <Button size="sm" onClick={() => exportDurationRows(rows)}>
+                      Export
+                    </Button>
                   </div>
                   <div className="overflow-auto rounded-md border">
                     <table className="min-w-[800px] text-sm">
@@ -692,11 +737,19 @@ function FacultyCard({
                       <tbody className="divide-y">
                         <tr className="hover:bg-muted/20">
                           <td className="p-2 font-medium">Faculty</td>
-                          <td className="p-2 font-semibold">{f.avgMinutes} min (avg)</td>
-                          <td className="p-2 font-semibold">{f.normalizedHours} h</td>
-                          <td className="p-2 font-semibold">{f.normalizedHours} h</td>
+                          <td className="p-2 font-semibold">
+                            {f.avgMinutes} min (avg)
+                          </td>
+                          <td className="p-2 font-semibold">
+                            {f.normalizedHours} h
+                          </td>
+                          <td className="p-2 font-semibold">
+                            {f.normalizedHours} h
+                          </td>
                           <td className="p-2 font-semibold">{f.underCount}</td>
-                          <td className="p-2 font-semibold">{f.addnlCLFromAvg}</td>
+                          <td className="p-2 font-semibold">
+                            {f.addnlCLFromAvg}
+                          </td>
                           <td className="p-2 font-semibold">{f.totalCL}</td>
                         </tr>
                       </tbody>
@@ -786,8 +839,15 @@ function HODCard({
                     return (
                       <div className="space-y-2">
                         <div className="flex items-center justify-between">
-                          <p className="text-xs text-muted-foreground">Cumulative Summary</p>
-                          <Button size="sm" onClick={() => exportCumulativeRows(rows)}>Export</Button>
+                          <p className="text-xs text-muted-foreground">
+                            Cumulative Summary
+                          </p>
+                          <Button
+                            size="sm"
+                            onClick={() => exportCumulativeRows(rows)}
+                          >
+                            Export
+                          </Button>
                         </div>
                         <div className="overflow-auto rounded-md border">
                           <table className="min-w-[900px] text-sm">
@@ -797,19 +857,35 @@ function HODCard({
                                 <th className="p-2">Grace Out</th>
                                 <th className="p-2">Late In</th>
                                 <th className="p-2">Early Out</th>
-                                <th className="p-2"># Double Grace (cumulative)</th>
-                                <th className="p-2"># Observations (cumulative)</th>
+                                <th className="p-2">
+                                  # Double Grace (cumulative)
+                                </th>
+                                <th className="p-2">
+                                  # Observations (cumulative)
+                                </th>
                                 <th className="p-2"># CLs (cumulative)</th>
                               </tr>
                             </thead>
                             <tbody>
                               <tr className="hover:bg-muted/20">
-                                <td className="p-2 font-semibold">{c.graceInCount}</td>
-                                <td className="p-2 font-semibold">{c.graceOutCount}</td>
-                                <td className="p-2 font-semibold">{c.lateInCount}</td>
-                                <td className="p-2 font-semibold">{c.earlyOutCount}</td>
-                                <td className="p-2 font-semibold">{c.doubleGrace}</td>
-                                <td className="p-2 font-semibold">{c.observations}</td>
+                                <td className="p-2 font-semibold">
+                                  {c.graceInCount}
+                                </td>
+                                <td className="p-2 font-semibold">
+                                  {c.graceOutCount}
+                                </td>
+                                <td className="p-2 font-semibold">
+                                  {c.lateInCount}
+                                </td>
+                                <td className="p-2 font-semibold">
+                                  {c.earlyOutCount}
+                                </td>
+                                <td className="p-2 font-semibold">
+                                  {c.doubleGrace}
+                                </td>
+                                <td className="p-2 font-semibold">
+                                  {c.observations}
+                                </td>
                                 <td className="p-2 font-semibold">{c.cls}</td>
                               </tr>
                             </tbody>
@@ -824,8 +900,15 @@ function HODCard({
                     return (
                       <div className="space-y-2">
                         <div className="flex items-center justify-between">
-                          <p className="text-xs text-muted-foreground">Duration & CL Summary</p>
-                          <Button size="sm" onClick={() => exportDurationRows(rows)}>Export</Button>
+                          <p className="text-xs text-muted-foreground">
+                            Duration & CL Summary
+                          </p>
+                          <Button
+                            size="sm"
+                            onClick={() => exportDurationRows(rows)}
+                          >
+                            Export
+                          </Button>
                         </div>
                         <div className="overflow-auto rounded-md border">
                           <table className="min-w-[800px] text-sm">
@@ -836,19 +919,33 @@ function HODCard({
                                 <th className="p-2">Normalized Duration</th>
                                 <th className="p-2">Avg Monthly Duration</th>
                                 <th className="p-2">Avg &lt;7.5h</th>
-                                <th className="p-2">Addnl CL for Average Duration</th>
+                                <th className="p-2">
+                                  Addnl CL for Average Duration
+                                </th>
                                 <th className="p-2">Total CL</th>
                               </tr>
                             </thead>
                             <tbody className="divide-y">
                               <tr className="hover:bg-muted/20">
                                 <td className="p-2 font-medium">HOD</td>
-                                <td className="p-2 font-semibold">{f.avgMinutes} min (avg)</td>
-                                <td className="p-2 font-semibold">{f.normalizedHours} h</td>
-                                <td className="p-2 font-semibold">{f.normalizedHours} h</td>
-                                <td className="p-2 font-semibold">{f.underCount}</td>
-                                <td className="p-2 font-semibold">{f.addnlCLFromAvg}</td>
-                                <td className="p-2 font-semibold">{f.totalCL}</td>
+                                <td className="p-2 font-semibold">
+                                  {f.avgMinutes} min (avg)
+                                </td>
+                                <td className="p-2 font-semibold">
+                                  {f.normalizedHours} h
+                                </td>
+                                <td className="p-2 font-semibold">
+                                  {f.normalizedHours} h
+                                </td>
+                                <td className="p-2 font-semibold">
+                                  {f.underCount}
+                                </td>
+                                <td className="p-2 font-semibold">
+                                  {f.addnlCLFromAvg}
+                                </td>
+                                <td className="p-2 font-semibold">
+                                  {f.totalCL}
+                                </td>
                               </tr>
                             </tbody>
                           </table>
@@ -1118,11 +1215,19 @@ export default function PrincipalDashboard() {
               </span>
               <span className="inline-flex items-center gap-2 px-2.5 py-1 rounded-full bg-muted/60">
                 <span className="text-muted-foreground">Total HODs</span>
-                <span className="font-semibold">{departments.reduce((s, d) => s + d.hods.length, 0)}</span>
+                <span className="font-semibold">
+                  {departments.reduce((s, d) => s + d.hods.length, 0)}
+                </span>
               </span>
               <span className="inline-flex items-center gap-2 px-2.5 py-1 rounded-full bg-muted/60">
                 <span className="text-muted-foreground">Faculty</span>
-                <span className="font-semibold">{departments.reduce((s, d) => s + d.hods.reduce((x, h) => x + h.faculties.length, 0), 0)}</span>
+                <span className="font-semibold">
+                  {departments.reduce(
+                    (s, d) =>
+                      s + d.hods.reduce((x, h) => x + h.faculties.length, 0),
+                    0,
+                  )}
+                </span>
               </span>
             </div>
           </div>
@@ -1151,13 +1256,18 @@ export default function PrincipalDashboard() {
         <div className="mt-3">
           <Card>
             <CardContent className="p-4">
-              <p className="text-xs text-muted-foreground mb-2">All Departments</p>
+              <p className="text-xs text-muted-foreground mb-2">
+                All Departments
+              </p>
               <div className="h-48">
                 <ResponsiveContainer width="100%" height="100%">
                   <BarChart
                     data={departments.map((d) => ({
                       code: d.code,
-                      faculty: d.hods.reduce((s, h) => s + h.faculties.length, 0),
+                      faculty: d.hods.reduce(
+                        (s, h) => s + h.faculties.length,
+                        0,
+                      ),
                       hods: d.hods.length,
                     }))}
                     margin={{ top: 10, right: 20, left: 0, bottom: 0 }}

@@ -275,7 +275,6 @@ export default function Attendance() {
     { name: "Absent/Off", value: monthly.absent },
   ];
 
-
   async function getXLSX() {
     try {
       return await import("xlsx");
@@ -459,7 +458,7 @@ export default function Attendance() {
       .map(([date, v]) => ({
         day: date.slice(-2),
         count: v.count,
-        avgHours: Number(((v.total / Math.max(1, v.count)) / 60).toFixed(2)),
+        avgHours: Number((v.total / Math.max(1, v.count) / 60).toFixed(2)),
       }));
   }, [filteredPunches]);
 
@@ -523,18 +522,36 @@ export default function Attendance() {
 
         <Card className="lg:col-span-2">
           <CardContent className="p-4">
-            <p className="text-xs text-muted-foreground">Attendance detail (graph)</p>
+            <p className="text-xs text-muted-foreground">
+              Attendance detail (graph)
+            </p>
             <div className="h-56">
               <ResponsiveContainer width="100%" height="100%">
-                <ComposedChart data={detailChartData} margin={{ top: 10, right: 20, left: 0, bottom: 0 }}>
+                <ComposedChart
+                  data={detailChartData}
+                  margin={{ top: 10, right: 20, left: 0, bottom: 0 }}
+                >
                   <CartesianGrid strokeDasharray="3 3" />
                   <XAxis dataKey="day" />
                   <YAxis yAxisId="left" allowDecimals={false} />
                   <YAxis yAxisId="right" orientation="right" />
                   <RTooltip />
                   <Legend />
-                  <Bar yAxisId="left" dataKey="count" name="Entries" fill="#ef4444" />
-                  <Line yAxisId="right" type="monotone" dataKey="avgHours" name="Avg Hours" stroke="#b91c1c" strokeWidth={2} dot={false} />
+                  <Bar
+                    yAxisId="left"
+                    dataKey="count"
+                    name="Entries"
+                    fill="#ef4444"
+                  />
+                  <Line
+                    yAxisId="right"
+                    type="monotone"
+                    dataKey="avgHours"
+                    name="Avg Hours"
+                    stroke="#b91c1c"
+                    strokeWidth={2}
+                    dot={false}
+                  />
                 </ComposedChart>
               </ResponsiveContainer>
             </div>
@@ -619,8 +636,12 @@ export default function Attendance() {
         <Card>
           <CardContent className="p-4 space-y-4">
             <div className="flex items-center justify-between">
-              <p className="text-xs text-muted-foreground">Cumulative Summary</p>
-              <Button onClick={exportCumulative} size="sm">Export</Button>
+              <p className="text-xs text-muted-foreground">
+                Cumulative Summary
+              </p>
+              <Button onClick={exportCumulative} size="sm">
+                Export
+              </Button>
             </div>
             {(() => {
               const {
@@ -645,7 +666,10 @@ export default function Attendance() {
                 <>
                   <div className="h-48">
                     <ResponsiveContainer width="100%" height="100%">
-                      <BarChart data={cumChartData} margin={{ top: 10, right: 20, left: 0, bottom: 0 }}>
+                      <BarChart
+                        data={cumChartData}
+                        margin={{ top: 10, right: 20, left: 0, bottom: 0 }}
+                      >
                         <CartesianGrid strokeDasharray="3 3" />
                         <XAxis dataKey="name" hide />
                         <YAxis allowDecimals={false} />
@@ -696,8 +720,12 @@ export default function Attendance() {
         <Card>
           <CardContent className="p-4 space-y-4">
             <div className="flex items-center justify-between">
-              <p className="text-xs text-muted-foreground">Duration & CL Summary</p>
-              <Button onClick={exportDuration} size="sm">Export</Button>
+              <p className="text-xs text-muted-foreground">
+                Duration & CL Summary
+              </p>
+              <Button onClick={exportDuration} size="sm">
+                Export
+              </Button>
             </div>
             {(() => {
               const f = computeDuration(filteredPunches);
@@ -712,7 +740,10 @@ export default function Attendance() {
               const hodTotalCL = hodGraceBasedCL + hodAddnlCL;
 
               const durChart = [
-                { name: "Avg Hours", value: Number((f.avgMinutes / 60).toFixed(2)) },
+                {
+                  name: "Avg Hours",
+                  value: Number((f.avgMinutes / 60).toFixed(2)),
+                },
                 { name: "<7.5h Days", value: f.underCount },
                 { name: "CL (Total)", value: f.totalCL },
               ];
@@ -721,7 +752,10 @@ export default function Attendance() {
                 <>
                   <div className="h-48">
                     <ResponsiveContainer width="100%" height="100%">
-                      <BarChart data={durChart} margin={{ top: 10, right: 20, left: 0, bottom: 0 }}>
+                      <BarChart
+                        data={durChart}
+                        margin={{ top: 10, right: 20, left: 0, bottom: 0 }}
+                      >
                         <CartesianGrid strokeDasharray="3 3" />
                         <XAxis dataKey="name" />
                         <YAxis allowDecimals />
