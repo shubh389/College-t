@@ -12,6 +12,16 @@ import {
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
+import {
+  ResponsiveContainer,
+  BarChart,
+  Bar,
+  XAxis,
+  YAxis,
+  CartesianGrid,
+  Tooltip as RTooltip,
+  Legend,
+} from "recharts";
 
 // Data types
 export interface AttendanceRecord {
@@ -249,6 +259,146 @@ function parseTime(v: any): string {
   const m = s.match(/(\d{1,2}):(\d{2})/);
   if (m) return `${m[1].padStart(2, "0")}:${m[2]}`;
   return "";
+}
+
+function parseHM(s: string): { h: number; m: number } | null {
+  const m = String(s || "").match(/^(\d{1,2}):(\d{2})$/);
+  if (!m) return null;
+  return { h: Number(m[1]), m: Number(m[2]) };
+}
+function minutesBetween(
+  inDate: string,
+  inTime: string,
+  outDate: string,
+  outTime: string,
+) {
+  if (!inDate || !inTime || !outDate || !outTime) return 0;
+  const start = new Date(`${inDate}T${inTime}:00`);
+  const end = new Date(`${outDate}T${outTime}:00`);
+  const diff = Math.max(0, end.getTime() - start.getTime());
+  return Math.round(diff / 60000);
+}
+function computeCumulativeForRows(rows: PunchRow[]) {
+  let graceInCount = 0,
+    graceOutCount = 0,
+    lateInCount = 0,
+    earlyOutCount = 0,
+    doubleGrace = 0,
+    observations = 0;
+  for (const r of rows) {
+    const hmIn = parseHM(r.inTime);
+    const hmOut = parseHM(r.outTime);
+    const lateIn = !!(hmIn && (hmIn.h > 9 || (hmIn.h === 9 && hmIn.m > 10)));
+    const earlyOut = !!(
+      hmOut &&
+      (hmOut.h < 17 || (hmOut.h === 17 && hmOut.m < 30))
+    );
+    const gIn = lateIn;
+    const gOut = earlyOut;
+    if (gIn) graceInCount++;
+    if (gOut) graceOutCount++;
+    if (lateIn) lateInCount++;
+    if (earlyOut) earlyOutCount++;
+    if (gIn && gOut) doubleGrace++;
+    if (lateIn || earlyOut || gIn || gOut) observations++;
+  }
+  const cls = Math.floor((lateInCount + earlyOutCount) / 4);
+  return {
+    graceInCount,
+    graceOutCount,
+    lateInCount,
+    earlyOutCount,
+    doubleGrace,
+    observations,
+    cls,
+  };
+}
+function computeDurationForRows(rows: PunchRow[]) {
+  const durations = rows
+    .map((r) => minutesBetween(r.inDate, r.inTime, r.outDate, r.outTime))
+    .filter((m) => m > 0);
+  const avgMinutes = durations.length
+    ? Math.round(durations.reduce((a, b) => a + b, 0) / durations.length)
+    : 0;
+  const normalizedHours = (avgMinutes / 60).toFixed(2);
+  const underCount = rows.filter(
+    (r) =>
+      minutesBetween(r.inDate, r.inTime, r.outDate, r.outTime) < 450 &&
+      minutesBetween(r.inDate, r.inTime, r.outDate, r.outTime) > 0,
+  ).length;
+  const addnlCLFromAvg = Math.floor(underCount / 4);
+  const lateInCount = rows.filter((r) => {
+    const hmIn = parseHM(r.inTime);
+    return !!(hmIn && (hmIn.h > 9 || (hmIn.h === 9 && hmIn.m > 10)));
+  }).length;
+  const earlyOutCount = rows.filter((r) => {
+    const hmOut = parseHM(r.outTime);
+    return !!(hmOut && (hmOut.h < 17 || (hmOut.h === 17 && hmOut.m < 30)));
+  }).length;
+  const graceBasedCL = Math.floor((lateInCount + earlyOutCount) / 4);
+  const totalCL = graceBasedCL + addnlCLFromAvg;
+  return { avgMinutes, normalizedHours, underCount, addnlCLFromAvg, totalCL };
+}
+async function getXLSX() {
+  try {
+    return await import("xlsx");
+  } catch {
+    if ((window as any).XLSX) return (window as any).XLSX;
+    await new Promise<void>((resolve, reject) => {
+      const s = document.createElement("script");
+      s.src = "https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js";
+      s.onload = () => resolve();
+      s.onerror = () => reject(new Error("Failed to load XLSX"));
+      document.head.appendChild(s);
+    });
+    return (window as any).XLSX;
+  }
+}
+async function exportCumulativeRows(rows: PunchRow[]) {
+  const XLSX = await getXLSX();
+  const c = computeCumulativeForRows(rows);
+  const data = [
+    {
+      "Grace In": c.graceInCount,
+      "Grace Out": c.graceOutCount,
+      "Late In": c.lateInCount,
+      "Early Out": c.earlyOutCount,
+      "# Late In (cumulative)": c.lateInCount,
+      "# Early Out (cum)": c.earlyOutCount,
+      "# Double Grace (cumulative)": c.doubleGrace,
+      "# Observations (cumulative)": c.observations,
+      "# CLs (cumulative)": c.cls,
+    },
+  ];
+  const wb = XLSX.utils.book_new();
+  const ws = XLSX.utils.json_to_sheet(data);
+  XLSX.utils.book_append_sheet(wb, ws, "Cumulative");
+  XLSX.writeFile(
+    wb,
+    `cumulative-${new Date().toISOString().slice(0, 10)}.xlsx`,
+  );
+}
+async function exportDurationRows(rows: PunchRow[]) {
+  const XLSX = await getXLSX();
+  const f = computeDurationForRows(rows);
+  const out = [
+    {
+      Role: "Faculty",
+      Duration: `${f.avgMinutes} min (avg)`,
+      "Normalized Duration": `${f.normalizedHours} h`,
+      "Avg Monthly Duration": `${f.normalizedHours} h`,
+      "Avg <7.5h": f.underCount,
+      "Addnl CL for Average Duration": f.addnlCLFromAvg,
+      "Total CL": f.totalCL,
+    },
+  ];
+  const wb = XLSX.utils.book_new();
+  const ws = XLSX.utils.json_to_sheet(out);
+  XLSX.utils.book_append_sheet(wb, ws, "Duration & CL");
+  XLSX.writeFile(
+    wb,
+    `duration-cl-${new Date().toISOString().slice(0, 10)}.xlsx`,
+  );
 }
 
 function AttendanceDetailTable({ rows }: { rows: PunchRow[] }) {
@@ -501,12 +651,113 @@ function FacultyCard({
           </Button>
         </div>
         {open && (
-          <div className="mt-4 space-y-3">
+          <div className="mt-4 space-y-4">
             <div className="flex items-center gap-2 text-xs text-muted-foreground">
               <CalendarDays className="h-4 w-4" />
               Attendance detail
             </div>
             <AttendanceDetailTable rows={rows} />
+            {(() => {
+              const c = computeCumulativeForRows(rows);
+              return (
+                <div className="space-y-2">
+                  <div className="flex items-center justify-between">
+                    <p className="text-xs text-muted-foreground">
+                      Cumulative Summary
+                    </p>
+                    <Button
+                      size="sm"
+                      onClick={() => exportCumulativeRows(rows)}
+                    >
+                      Export
+                    </Button>
+                  </div>
+                  <div className="overflow-auto rounded-md border">
+                    <table className="min-w-[900px] text-sm">
+                      <thead className="bg-muted/40 text-left">
+                        <tr>
+                          <th className="p-2">Grace In</th>
+                          <th className="p-2">Grace Out</th>
+                          <th className="p-2">Late In</th>
+                          <th className="p-2">Early Out</th>
+                          <th className="p-2"># Double Grace (cumulative)</th>
+                          <th className="p-2"># Observations (cumulative)</th>
+                          <th className="p-2"># CLs (cumulative)</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        <tr className="hover:bg-muted/20">
+                          <td className="p-2 font-semibold">
+                            {c.graceInCount}
+                          </td>
+                          <td className="p-2 font-semibold">
+                            {c.graceOutCount}
+                          </td>
+                          <td className="p-2 font-semibold">{c.lateInCount}</td>
+                          <td className="p-2 font-semibold">
+                            {c.earlyOutCount}
+                          </td>
+                          <td className="p-2 font-semibold">{c.doubleGrace}</td>
+                          <td className="p-2 font-semibold">
+                            {c.observations}
+                          </td>
+                          <td className="p-2 font-semibold">{c.cls}</td>
+                        </tr>
+                      </tbody>
+                    </table>
+                  </div>
+                </div>
+              );
+            })()}
+            {(() => {
+              const f = computeDurationForRows(rows);
+              return (
+                <div className="space-y-2">
+                  <div className="flex items-center justify-between">
+                    <p className="text-xs text-muted-foreground">
+                      Duration & CL Summary
+                    </p>
+                    <Button size="sm" onClick={() => exportDurationRows(rows)}>
+                      Export
+                    </Button>
+                  </div>
+                  <div className="overflow-auto rounded-md border">
+                    <table className="min-w-[800px] text-sm">
+                      <thead className="bg-muted/40 text-left">
+                        <tr>
+                          <th className="p-2">Role</th>
+                          <th className="p-2">Duration</th>
+                          <th className="p-2">Normalized Duration</th>
+                          <th className="p-2">Avg Monthly Duration</th>
+                          <th className="p-2">Avg &lt;7.5h</th>
+                          <th className="p-2">Addnl CL for Average Duration</th>
+                          <th className="p-2">Total CL</th>
+                        </tr>
+                      </thead>
+                      <tbody className="divide-y">
+                        <tr className="hover:bg-muted/20">
+                          <td className="p-2 font-medium">Faculty</td>
+                          <td className="p-2 font-semibold">
+                            {f.avgMinutes} min (avg)
+                          </td>
+                          <td className="p-2 font-semibold">
+                            {f.normalizedHours} h
+                          </td>
+                          <td className="p-2 font-semibold">
+                            {f.normalizedHours} h
+                          </td>
+                          <td className="p-2 font-semibold">{f.underCount}</td>
+                          <td className="p-2 font-semibold">
+                            {f.addnlCLFromAvg}
+                          </td>
+                          <td className="p-2 font-semibold">{f.totalCL}</td>
+                        </tr>
+                      </tbody>
+                    </table>
+                  </div>
+                </div>
+              );
+            })()}
           </div>
         )}
       </CardContent>
@@ -579,7 +830,131 @@ function HODCard({
                   />
                 </Button>
               </div>
-              {hodOpen && <AttendanceDetailTable rows={getRows(hod.name)} />}
+              {hodOpen && (
+                <div className="space-y-4">
+                  <AttendanceDetailTable rows={getRows(hod.name)} />
+                  {(() => {
+                    const rows = getRows(hod.name);
+                    const c = computeCumulativeForRows(rows);
+                    return (
+                      <div className="space-y-2">
+                        <div className="flex items-center justify-between">
+                          <p className="text-xs text-muted-foreground">
+                            Cumulative Summary
+                          </p>
+                          <Button
+                            size="sm"
+                            onClick={() => exportCumulativeRows(rows)}
+                          >
+                            Export
+                          </Button>
+                        </div>
+                        <div className="overflow-auto rounded-md border">
+                          <table className="min-w-[900px] text-sm">
+                            <thead className="bg-muted/40 text-left">
+                              <tr>
+                                <th className="p-2">Grace In</th>
+                                <th className="p-2">Grace Out</th>
+                                <th className="p-2">Late In</th>
+                                <th className="p-2">Early Out</th>
+                                <th className="p-2">
+                                  # Double Grace (cumulative)
+                                </th>
+                                <th className="p-2">
+                                  # Observations (cumulative)
+                                </th>
+                                <th className="p-2"># CLs (cumulative)</th>
+                              </tr>
+                            </thead>
+                            <tbody>
+                              <tr className="hover:bg-muted/20">
+                                <td className="p-2 font-semibold">
+                                  {c.graceInCount}
+                                </td>
+                                <td className="p-2 font-semibold">
+                                  {c.graceOutCount}
+                                </td>
+                                <td className="p-2 font-semibold">
+                                  {c.lateInCount}
+                                </td>
+                                <td className="p-2 font-semibold">
+                                  {c.earlyOutCount}
+                                </td>
+                                <td className="p-2 font-semibold">
+                                  {c.doubleGrace}
+                                </td>
+                                <td className="p-2 font-semibold">
+                                  {c.observations}
+                                </td>
+                                <td className="p-2 font-semibold">{c.cls}</td>
+                              </tr>
+                            </tbody>
+                          </table>
+                        </div>
+                      </div>
+                    );
+                  })()}
+                  {(() => {
+                    const rows = getRows(hod.name);
+                    const f = computeDurationForRows(rows);
+                    return (
+                      <div className="space-y-2">
+                        <div className="flex items-center justify-between">
+                          <p className="text-xs text-muted-foreground">
+                            Duration & CL Summary
+                          </p>
+                          <Button
+                            size="sm"
+                            onClick={() => exportDurationRows(rows)}
+                          >
+                            Export
+                          </Button>
+                        </div>
+                        <div className="overflow-auto rounded-md border">
+                          <table className="min-w-[800px] text-sm">
+                            <thead className="bg-muted/40 text-left">
+                              <tr>
+                                <th className="p-2">Role</th>
+                                <th className="p-2">Duration</th>
+                                <th className="p-2">Normalized Duration</th>
+                                <th className="p-2">Avg Monthly Duration</th>
+                                <th className="p-2">Avg &lt;7.5h</th>
+                                <th className="p-2">
+                                  Addnl CL for Average Duration
+                                </th>
+                                <th className="p-2">Total CL</th>
+                              </tr>
+                            </thead>
+                            <tbody className="divide-y">
+                              <tr className="hover:bg-muted/20">
+                                <td className="p-2 font-medium">HOD</td>
+                                <td className="p-2 font-semibold">
+                                  {f.avgMinutes} min (avg)
+                                </td>
+                                <td className="p-2 font-semibold">
+                                  {f.normalizedHours} h
+                                </td>
+                                <td className="p-2 font-semibold">
+                                  {f.normalizedHours} h
+                                </td>
+                                <td className="p-2 font-semibold">
+                                  {f.underCount}
+                                </td>
+                                <td className="p-2 font-semibold">
+                                  {f.addnlCLFromAvg}
+                                </td>
+                                <td className="p-2 font-semibold">
+                                  {f.totalCL}
+                                </td>
+                              </tr>
+                            </tbody>
+                          </table>
+                        </div>
+                      </div>
+                    );
+                  })()}
+                </div>
+              )}
             </div>
             <SectionHeader
               icon={UserRound}
@@ -826,33 +1201,89 @@ export default function PrincipalDashboard() {
 
   return (
     <div className="space-y-8">
-      <div className="flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
-        <div>
-          <h2 className="text-2xl font-semibold tracking-tight">Overview</h2>
-          <p className="text-sm text-muted-foreground">
-            Department grid • Expand into HOD → Faculty → Attendance
-          </p>
-        </div>
-        <div className="flex items-center gap-3">
-          <div className="relative">
-            <label htmlFor="deptFilter" className="sr-only">
-              Filter
-            </label>
-            <select
-              id="deptFilter"
-              value={selectedDeptId}
-              onChange={(e) => setSelectedDeptId(e.target.value)}
-              className="appearance-none text-sm pr-9 pl-3 py-2 rounded-md border bg-white shadow-sm focus:outline-none focus:ring-2 focus:ring-red-500"
-            >
-              <option value="">All Departments</option>
-              {departments.map((d) => (
-                <option key={d.id} value={d.id}>
-                  {d.code} — {d.name}
-                </option>
-              ))}
-            </select>
-            <ChevronDown className="pointer-events-none absolute right-2 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+      <div className="sticky top-14 z-30 bg-background/80 backdrop-blur supports-[backdrop-filter]:bg-background/60 py-2">
+        <div className="flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
+          <div>
+            <h2 className="text-2xl font-semibold tracking-tight">Overview</h2>
+            <p className="text-sm text-muted-foreground">
+              Department grid • Expand into HOD → Faculty → Attendance
+            </p>
+            <div className="mt-2 flex flex-wrap items-center gap-3 text-xs sm:text-sm">
+              <span className="inline-flex items-center gap-2 px-2.5 py-1 rounded-full bg-muted/60">
+                <span className="text-muted-foreground">Departments</span>
+                <span className="font-semibold">{departments.length}</span>
+              </span>
+              <span className="inline-flex items-center gap-2 px-2.5 py-1 rounded-full bg-muted/60">
+                <span className="text-muted-foreground">Total HODs</span>
+                <span className="font-semibold">
+                  {departments.reduce((s, d) => s + d.hods.length, 0)}
+                </span>
+              </span>
+              <span className="inline-flex items-center gap-2 px-2.5 py-1 rounded-full bg-muted/60">
+                <span className="text-muted-foreground">Faculty</span>
+                <span className="font-semibold">
+                  {departments.reduce(
+                    (s, d) =>
+                      s + d.hods.reduce((x, h) => x + h.faculties.length, 0),
+                    0,
+                  )}
+                </span>
+              </span>
+            </div>
           </div>
+          <div className="flex items-center gap-3">
+            <div className="relative">
+              <label htmlFor="deptFilter" className="sr-only">
+                Filter
+              </label>
+              <select
+                id="deptFilter"
+                value={selectedDeptId}
+                onChange={(e) => setSelectedDeptId(e.target.value)}
+                className="appearance-none text-sm pr-9 pl-3 py-2 rounded-md border bg-white shadow-sm focus:outline-none focus:ring-2 focus:ring-red-500"
+              >
+                <option value="">All Departments</option>
+                {departments.map((d) => (
+                  <option key={d.id} value={d.id}>
+                    {d.code} — {d.name}
+                  </option>
+                ))}
+              </select>
+              <ChevronDown className="pointer-events-none absolute right-2 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+            </div>
+          </div>
+        </div>
+        <div className="mt-3">
+          <Card>
+            <CardContent className="p-4">
+              <p className="text-xs text-muted-foreground mb-2">
+                All Departments
+              </p>
+              <div className="h-48">
+                <ResponsiveContainer width="100%" height="100%">
+                  <BarChart
+                    data={departments.map((d) => ({
+                      code: d.code,
+                      faculty: d.hods.reduce(
+                        (s, h) => s + h.faculties.length,
+                        0,
+                      ),
+                      hods: d.hods.length,
+                    }))}
+                    margin={{ top: 10, right: 20, left: 0, bottom: 0 }}
+                  >
+                    <CartesianGrid strokeDasharray="3 3" />
+                    <XAxis dataKey="code" />
+                    <YAxis allowDecimals={false} />
+                    <RTooltip />
+                    <Legend />
+                    <Bar dataKey="faculty" name="Faculty" fill="#ef4444" />
+                    <Bar dataKey="hods" name="HODs" fill="#fecaca" />
+                  </BarChart>
+                </ResponsiveContainer>
+              </div>
+            </CardContent>
+          </Card>
         </div>
       </div>
 
