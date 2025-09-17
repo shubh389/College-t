@@ -13,6 +13,8 @@ import {
   YAxis,
   CartesianGrid,
   Legend,
+  BarChart,
+  Bar,
 } from "recharts";
 
 interface PunchRow {
@@ -553,36 +555,36 @@ export default function Attendance() {
           <CardContent className="p-4">
             <div className="flex flex-col sm:flex-row sm:items-end sm:justify-between gap-3 mb-2">
               <p className="text-xs text-muted-foreground">Attendance detail</p>
-              <div className="grid grid-cols-2 md:grid-cols-5 gap-2">
-                <select
-                  value={filterDept}
-                  onChange={(e) => setFilterDept(e.target.value)}
-                  className="border rounded-md px-2 py-1 text-sm"
-                >
-                  {departments.map((d) => (
-                    <option key={d} value={d}>
-                      {d}
-                    </option>
-                  ))}
-                </select>
-                <input
-                  value={search}
-                  onChange={(e) => setSearch(e.target.value)}
-                  placeholder="Search name/ID"
-                  className="border rounded-md px-2 py-1 text-sm"
-                />
-                <input
-                  type="date"
-                  value={dateFrom}
-                  onChange={(e) => setDateFrom(e.target.value)}
-                  className="border rounded-md px-2 py-1 text-sm"
-                />
-                <input
-                  type="date"
-                  value={dateTo}
-                  onChange={(e) => setDateTo(e.target.value)}
-                  className="border rounded-md px-2 py-1 text-sm"
-                />
+              <div className="flex flex-col items-stretch sm:items-end gap-2">
+                <div className="grid grid-cols-2 md:grid-cols-4 gap-2">
+                  <select
+                    value={filterDept}
+                    onChange={(e) => setFilterDept(e.target.value)}
+                    className="border rounded-md px-2 py-1 text-sm"
+                  >
+                    {departments.map((d) => (
+                      <option key={d} value={d}>
+                        {d}
+                      </option>
+                    ))}
+                  </select>
+                  <input
+                    value={search}
+                    onChange={(e) => setSearch(e.target.value)}
+                    placeholder="Search name/ID"
+                    className="border rounded-md px-2 py-1 text-sm"
+                  />
+                  <input
+                    type="date"
+                    value={dateFrom}
+                    onChange={(e) => setDateFrom(e.target.value)}
+                    className="border rounded-md px-2 py-1 text-sm"
+                  />
+                  {/* Removed second date box per request */}
+                </div>
+                <Button onClick={exportDetailed} className="self-end" size="sm">
+                  Export
+                </Button>
               </div>
             </div>
             <div className="overflow-auto rounded-md border">
@@ -622,7 +624,10 @@ export default function Attendance() {
 
         <Card>
           <CardContent className="p-4 space-y-4">
-            <p className="text-xs text-muted-foreground">Cumulative Summary</p>
+            <div className="flex items-center justify-between">
+              <p className="text-xs text-muted-foreground">Cumulative Summary</p>
+              <Button onClick={exportCumulative} size="sm">Export</Button>
+            </div>
             {(() => {
               const {
                 graceInCount,
@@ -633,37 +638,60 @@ export default function Attendance() {
                 observations,
                 cls,
               } = computeCumulative(filteredPunches);
+              const cumChartData = [
+                { name: "Grace In", value: graceInCount },
+                { name: "Grace Out", value: graceOutCount },
+                { name: "Late In", value: lateInCount },
+                { name: "Early Out", value: earlyOutCount },
+                { name: "Double Grace", value: doubleGrace },
+                { name: "Observations", value: observations },
+                { name: "CLs", value: cls },
+              ];
               return (
-                <div className="overflow-auto rounded-md border">
-                  <table className="min-w-[1200px] text-sm">
-                    <thead className="bg-muted/40 text-left">
-                      <tr>
-                        <th className="p-2">Grace In</th>
-                        <th className="p-2">Grace Out</th>
-                        <th className="p-2">Late In</th>
-                        <th className="p-2">Early Out</th>
-                        <th className="p-2"># Late In (cumulative)</th>
-                        <th className="p-2"># Early Out (cum)</th>
-                        <th className="p-2"># Double Grace (cumulative)</th>
-                        <th className="p-2"># Observations (cumulative)</th>
-                        <th className="p-2"># CLs (cumulative)</th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      <tr className="hover:bg-muted/20">
-                        <td className="p-2 font-semibold">{graceInCount}</td>
-                        <td className="p-2 font-semibold">{graceOutCount}</td>
-                        <td className="p-2 font-semibold">{lateInCount}</td>
-                        <td className="p-2 font-semibold">{earlyOutCount}</td>
-                        <td className="p-2 font-semibold">{lateInCount}</td>
-                        <td className="p-2 font-semibold">{earlyOutCount}</td>
-                        <td className="p-2 font-semibold">{doubleGrace}</td>
-                        <td className="p-2 font-semibold">{observations}</td>
-                        <td className="p-2 font-semibold">{cls}</td>
-                      </tr>
-                    </tbody>
-                  </table>
-                </div>
+                <>
+                  <div className="h-48">
+                    <ResponsiveContainer width="100%" height="100%">
+                      <BarChart data={cumChartData} margin={{ top: 10, right: 20, left: 0, bottom: 0 }}>
+                        <CartesianGrid strokeDasharray="3 3" />
+                        <XAxis dataKey="name" hide />
+                        <YAxis allowDecimals={false} />
+                        <RTooltip />
+                        <Legend />
+                        <Bar dataKey="value" name="Count" fill="#ef4444" />
+                      </BarChart>
+                    </ResponsiveContainer>
+                  </div>
+                  <div className="overflow-auto rounded-md border">
+                    <table className="min-w-[1200px] text-sm">
+                      <thead className="bg-muted/40 text-left">
+                        <tr>
+                          <th className="p-2">Grace In</th>
+                          <th className="p-2">Grace Out</th>
+                          <th className="p-2">Late In</th>
+                          <th className="p-2">Early Out</th>
+                          <th className="p-2"># Late In (cumulative)</th>
+                          <th className="p-2"># Early Out (cum)</th>
+                          <th className="p-2"># Double Grace (cumulative)</th>
+                          <th className="p-2"># Observations (cumulative)</th>
+                          <th className="p-2"># CLs (cumulative)</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        <tr className="hover:bg-muted/20">
+                          <td className="p-2 font-semibold">{graceInCount}</td>
+                          <td className="p-2 font-semibold">{graceOutCount}</td>
+                          <td className="p-2 font-semibold">{lateInCount}</td>
+                          <td className="p-2 font-semibold">{earlyOutCount}</td>
+                          <td className="p-2 font-semibold">{lateInCount}</td>
+                          <td className="p-2 font-semibold">{earlyOutCount}</td>
+                          <td className="p-2 font-semibold">{doubleGrace}</td>
+                          <td className="p-2 font-semibold">{observations}</td>
+                          <td className="p-2 font-semibold">{cls}</td>
+                        </tr>
+                      </tbody>
+                    </table>
+                  </div>
+                </>
               );
             })()}
           </CardContent>
@@ -672,10 +700,11 @@ export default function Attendance() {
 
       <div className="grid grid-cols-1 gap-6">
         <Card>
-          <CardContent className="p-4">
-            <p className="text-xs text-muted-foreground mb-2">
-              Duration & CL Summary
-            </p>
+          <CardContent className="p-4 space-y-4">
+            <div className="flex items-center justify-between">
+              <p className="text-xs text-muted-foreground">Duration & CL Summary</p>
+              <Button onClick={exportDuration} size="sm">Export</Button>
+            </div>
             {(() => {
               const f = computeDuration(filteredPunches);
               const hodAvgMinutes = Math.max(
@@ -688,41 +717,61 @@ export default function Attendance() {
               const hodGraceBasedCL = 0;
               const hodTotalCL = hodGraceBasedCL + hodAddnlCL;
 
+              const durChart = [
+                { name: "Avg Hours", value: Number((f.avgMinutes / 60).toFixed(2)) },
+                { name: "<7.5h Days", value: f.underCount },
+                { name: "CL (Total)", value: f.totalCL },
+              ];
+
               return (
-                <div className="overflow-auto rounded-md border">
-                  <table className="min-w-[980px] text-sm">
-                    <thead className="bg-muted/40 text-left">
-                      <tr>
-                        <th className="p-2">Role</th>
-                        <th className="p-2">Duration</th>
-                        <th className="p-2">Normalized Duration</th>
-                        <th className="p-2">Avg Monthly Duration</th>
-                        <th className="p-2">Avg &lt;7.5h</th>
-                        <th className="p-2">Addnl CL for Average Duration</th>
-                        <th className="p-2">Total CL</th>
-                      </tr>
-                    </thead>
-                    <tbody className="divide-y">
-                      <tr className="hover:bg-muted/20">
-                        <td className="p-2 font-medium">Faculty</td>
-                        <td className="p-2 font-semibold">
-                          {f.avgMinutes} min (avg)
-                        </td>
-                        <td className="p-2 font-semibold">
-                          {f.normalizedHours} h
-                        </td>
-                        <td className="p-2 font-semibold">
-                          {f.normalizedHours} h
-                        </td>
-                        <td className="p-2 font-semibold">{f.underCount}</td>
-                        <td className="p-2 font-semibold">
-                          {f.addnlCLFromAvg}
-                        </td>
-                        <td className="p-2 font-semibold">{f.totalCL}</td>
-                      </tr>
-                    </tbody>
-                  </table>
-                </div>
+                <>
+                  <div className="h-48">
+                    <ResponsiveContainer width="100%" height="100%">
+                      <BarChart data={durChart} margin={{ top: 10, right: 20, left: 0, bottom: 0 }}>
+                        <CartesianGrid strokeDasharray="3 3" />
+                        <XAxis dataKey="name" />
+                        <YAxis allowDecimals />
+                        <RTooltip />
+                        <Legend />
+                        <Bar dataKey="value" name="Value" fill="#b91c1c" />
+                      </BarChart>
+                    </ResponsiveContainer>
+                  </div>
+                  <div className="overflow-auto rounded-md border">
+                    <table className="min-w-[980px] text-sm">
+                      <thead className="bg-muted/40 text-left">
+                        <tr>
+                          <th className="p-2">Role</th>
+                          <th className="p-2">Duration</th>
+                          <th className="p-2">Normalized Duration</th>
+                          <th className="p-2">Avg Monthly Duration</th>
+                          <th className="p-2">Avg &lt;7.5h</th>
+                          <th className="p-2">Addnl CL for Average Duration</th>
+                          <th className="p-2">Total CL</th>
+                        </tr>
+                      </thead>
+                      <tbody className="divide-y">
+                        <tr className="hover:bg-muted/20">
+                          <td className="p-2 font-medium">Faculty</td>
+                          <td className="p-2 font-semibold">
+                            {f.avgMinutes} min (avg)
+                          </td>
+                          <td className="p-2 font-semibold">
+                            {f.normalizedHours} h
+                          </td>
+                          <td className="p-2 font-semibold">
+                            {f.normalizedHours} h
+                          </td>
+                          <td className="p-2 font-semibold">{f.underCount}</td>
+                          <td className="p-2 font-semibold">
+                            {f.addnlCLFromAvg}
+                          </td>
+                          <td className="p-2 font-semibold">{f.totalCL}</td>
+                        </tr>
+                      </tbody>
+                    </table>
+                  </div>
+                </>
               );
             })()}
           </CardContent>
